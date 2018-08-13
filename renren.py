@@ -15,7 +15,7 @@ cookoe_handler=request.HTTPCookieProcessor(cookiej)
 opener=request.build_opener(cookoe_handler)
 
 opener.add_handler([('User-Agent','Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/67.0.3396.99 Safari/537.36')])
-
+# 准备登陆
 url='http://www.renren.com/'
 
 data={'email':'xxx','password':'YYY'}
