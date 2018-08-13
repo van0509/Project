@@ -11,3 +11,5 @@ req=urllib.request.Request(url,headers=header)
 
 response=urllib.request.urlopen(req,context=context)
 
+
+print(response)
