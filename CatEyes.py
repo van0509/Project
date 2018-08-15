@@ -1,8 +1,8 @@
-import requests,time,random,re,json,functools
-from multiprocessing import Pool,Manager
+import requests, time, random, re, json, functools
+from multiprocessing import Pool, Manager
+from MySqlHeper import DBHelper
 
-
-header=[
+header = [
     "Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/67.0.3396.99 Safari/537.36",
     "Mozilla/4.0 (compatible; MSIE 6.0; Windows NT 5.1; SV1; AcooBrowser; .NET CLR 1.1.4322; .NET CLR 2.0.50727)",
     "Mozilla/4.0 (compatible; MSIE 7.0; Windows NT 6.0; Acoo Browser; SLCC1; .NET CLR 2.0.50727; Media Center PC 5.0; .NET CLR 3.0.04506)",
@@ -20,54 +20,83 @@ header=[
     "Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/535.11 (KHTML, like Gecko) Chrome/17.0.963.56 Safari/535.11",
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_7_3) AppleWebKit/535.20 (KHTML, like Gecko) Chrome/19.0.1036.7 Safari/535.20",
     "Opera/9.80 (Macintosh; Intel Mac OS X 10.6.8; U; fr) Presto/2.9.168 Version/11.52",
-    ]
+]
+
+
 def get_one_page(url):
-    headers={
-        "User-Agent":random.choice(header)
+    headers = {
+        "User-Agent": random.choice(header)
     }
     try:
-        response=requests.get(url,headers=headers)
-        if response.status_code==200:
+        response = requests.get(url, headers=headers)
+        if response.status_code == 200:
             return response.text
 
         return None
     except ReqestException:
         return None
 
-def deal_one_page(html):
-    pattern=re.compile('<p class="name">[\s\S]*?title="([\s\S]*?)"[\s\S]*?'
-                       '<p class="star">([\s\S]*?)</p>[\s\S]*?'
-                       '<p class="releasetime">([\s\S]*?)</p>[\s\S]*?')
-    results=re.findall(pattern,html)
-    for item in results:
-        yield {
-            "电影名称:":item[0].strip(),
-            "主演:":item[1].strip(),
-            "上映时间:":item[2].strip()
-            }
-def write2File(item):
-    with open('maoyan_yeild.txt','a',encoding='utf-8') as f:
-        f.write(json.dumps(item,ensure_ascii=False)+'\n')
 
-def crawlPage(lock,Num):
-    url="http://maoyan.com/board/6?offset={}".format(Num)
-    html=get_one_page(url)
+def deal_one_page(html):
+    pattern = re.compile('<p class="name">[\s\S]*?title="([\s\S]*?)"[\s\S]*?'
+                         '<p class="star">([\s\S]*?)</p>[\s\S]*?'
+                         '<p class="releasetime">([\s\S]*?)</p>[\s\S]*?')
+    results = re.findall(pattern, html)
+    for item in results:
+        # print(item)
+        yield {
+            "电影名称:": item[0].strip(),
+            "主演:": item[1].strip(),
+            "上映时间:": item[2].strip()
+        }
+
+
+# def write2File(item):
+#     with open('maoyan_yeild.txt','a',encoding='utf-8') as f:
+#         f.write(json.dumps(item,ensure_ascii=False)+'\n')
+
+def write2SQL(item):
+    '''
+    把数据插入到数据库中
+    :param item:
+    :return:
+    INSERT INTO `seven`.`maoyan` (`title`, `actor`, `time`) VALUES ('我不是药神', '徐峥', '2018-07-15');
+    '''
+    dbHeper = DBHelper()
+    title = item['电影名称:']
+    actor = item['主演:']
+    time = item['上映时间:']
+    sql = "INSERT INTO seven.maoyan (title, actor, time) VALUES (%s,%s,%s);"
+    params = (title, actor, time)
+    result = dbHeper.execute(sql, params)
+    if result:
+        print('插入成功')
+    else:
+        print('插入失败')
+
+
+def crawlPage(lock, Num):
+    url = "http://maoyan.com/board/6?offset={}".format(Num)
+    html = get_one_page(url)
     for item in deal_one_page(html):
+        print(item)
         lock.acquire()
-        write2File(item)
+        # write2File(item)
+        write2SQL(item)
         lock.release()
 
-if __name__=="__main__":
+
+if __name__ == "__main__":
     # for x in range(0,100,10):
     #     crawlPage(x)
     #
     #     time.sleep(random.randint(1,3))
-    manager=Manager()
-    lock=manager.Lock()
+    manager = Manager()
+    lock = manager.Lock()
 
-    pcrawlpage=functools.partial(crawlPage,lock)
-    pool=Pool()
-    pool.map(pcrawlpage,[i*10 for i in range(10)])
+    pcrawlpage = functools.partial(crawlPage, lock)
+    pool = Pool()
+    pool.map(pcrawlpage, [i * 10 for i in range(10)])
     pool.close()
     pool.join()
 
